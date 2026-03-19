@@ -9,6 +9,7 @@ from fastui import FastUI, components as c, prebuilt_html
 from fastui.events import GoToEvent
 
 BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
+BACKEND_TIMEOUT = 5.0
 
 app = FastAPI(title="Authentication UI")
 
@@ -62,7 +63,7 @@ def api_index() -> FastUI:
 async def api_login(username: str = Form(...), passcode: str = Form(...)) -> FastUI:
     payload = {"username": username, "passcode": passcode}
     try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
+        async with httpx.AsyncClient(timeout=BACKEND_TIMEOUT) as client:
             response = await client.post(f"{BACKEND_URL}/auth/login", json=payload)
         response.raise_for_status()
         data = response.json()
