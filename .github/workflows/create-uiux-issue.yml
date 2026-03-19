@@ -70,6 +70,10 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const pr = context.payload.pull_request;
+            if (!pr) {
+              core.warning('No pull_request found in the event payload; skipping UI/UX issue creation.');
+              return;
+            }
             const prTitle = pr.title;
             const prUrl   = pr.html_url;
             const prBody  = pr.body ?? '(no description provided)';
