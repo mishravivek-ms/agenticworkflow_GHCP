@@ -1,0 +1,124 @@
+name: Create UI/UX Issue on Merge
+
+# Trigger: fires when a PR is merged into the main branch
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+    types:
+      - closed
+
+# Prevent duplicate runs for the same PR
+concurrency:
+  group: create-uiux-issue-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  create-uiux-issue:
+    # Only run when the PR was actually merged (not just closed)
+    if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
+
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      contents: read
+
+    steps:
+      - name: Checkout repository (full history)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Ensure required labels exist
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const labels = [
+              { name: 'ui/ux',   color: '0075ca', description: 'UI/UX related changes' },
+              { name: 'copilot', color: '6e40c9', description: 'Assigned to GitHub Copilot' },
+            ];
+
+            for (const label of labels) {
+              try {
+                await github.rest.issues.getLabel({
+                  owner: context.repo.owner,
+                  repo:  context.repo.repo,
+                  name:  label.name,
+                });
+                core.info(`Label "${label.name}" already exists.`);
+              } catch (err) {
+                if (err.status === 404) {
+                  await github.rest.issues.createLabel({
+                    owner:       context.repo.owner,
+                    repo:        context.repo.repo,
+                    name:        label.name,
+                    color:       label.color,
+                    description: label.description,
+                  });
+                  core.info(`Created label "${label.name}".`);
+                } else {
+                  throw err;
+                }
+              }
+            }
+
+      - name: Create UI/UX requirement issue
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const pr = context.payload.pull_request;
+            if (!pr) {
+              core.warning('No pull_request found in the event payload; skipping UI/UX issue creation.');
+              return;
+            }
+            const prTitle = pr.title;
+            const prUrl   = pr.html_url;
+            const prBody  = pr.body ?? '(no description provided)';
+
+            const issueTitle = `[UI/UX] ${prTitle}`;
+            const issueBody = [
+              '## UI/UX Requirement',
+              '',
+              `This issue was automatically created when PR [#${pr.number} — ${prTitle}](${prUrl}) was merged.`,
+              '',
+              '### Original PR Description',
+              prBody,
+              '',
+              '---',
+              '',
+              '### Task for the UI/UX Agent',
+              '',
+              'Please review the merged changes and implement the corresponding UI/UX',
+              'in the `frontend/` application using **FastUI**.',
+              '',
+              'Follow the instructions in the `.github/agents/uiux-agent.agent.md` agent file.',
+              '',
+              '**Agent:** `uiux-agent`',
+            ].join('\n');
+
+            const createParams = {
+              owner:  context.repo.owner,
+              repo:   context.repo.repo,
+              title:  issueTitle,
+              body:   issueBody,
+              labels: ['ui/ux', 'copilot'],
+            };
+
+            // Assign to 'copilot' when GitHub Copilot is enabled for this repo.
+            // Wrapped in try/catch so an invalid assignee does not fail the workflow.
+            try {
+              await github.rest.issues.checkUserCanBeAssigned({
+                owner:    context.repo.owner,
+                repo:     context.repo.repo,
+                assignee: 'copilot',
+              });
+              createParams.assignees = ['copilot'];
+            } catch {
+              core.warning('Assignee "copilot" is not valid for this repository — skipping assignment.');
+            }
+
+            const { data: issue } = await github.rest.issues.create(createParams);
+            core.info(`Created issue #${issue.number}: ${issue.html_url}`);
