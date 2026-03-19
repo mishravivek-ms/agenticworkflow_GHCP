@@ -58,7 +58,7 @@ jobs:
               '',
               'Follow the instructions in the `.github/agents/uiux-agent.agent.md` agent file.',
               '',
-              '**Agent:** `uiux-agent`',
+              '**Agent:** `ui-uxagent`',
             ].join('\n');
 
             const createParams = {
