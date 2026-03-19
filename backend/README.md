@@ -13,6 +13,12 @@ uv sync
 uv run uvicorn app.main:app --reload --port 8000
 ```
 
+The API defaults to `username` / `passcode`. Override them with:
+
+```bash
+EXPECTED_USERNAME=yourname EXPECTED_PASSCODE=yourpass uv run uvicorn app.main:app --reload --port 8000
+```
+
 ## Example API Usage
 
 ```bash
