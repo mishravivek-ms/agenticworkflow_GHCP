@@ -17,7 +17,7 @@ concurrency:
 jobs:
   create-uiux-issue:
     # Only run when the PR was actually merged (not just closed)
-    if: github.event.pull_request.merged == true
+    if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
 
     runs-on: ubuntu-latest
     permissions:
