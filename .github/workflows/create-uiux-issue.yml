@@ -1,0 +1,63 @@
+name: Create UI/UX Issue on Merge
+
+# Trigger: fires when a PR is merged into the main branch
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - closed
+
+jobs:
+  create-uiux-issue:
+    # Only run when the PR was actually merged (not just closed)
+    if: github.event.pull_request.merged == true
+
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      contents: read
+
+    steps:
+      - name: Create UI/UX requirement issue
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const pr = context.payload.pull_request;
+            const prTitle = pr.title;
+            const prUrl  = pr.html_url;
+            const prBody = pr.body ?? '(no description provided)';
+
+            const issueTitle = `[UI/UX] ${prTitle}`;
+            const issueBody  = `## UI/UX Requirement
+
+            This issue was automatically created when PR [#${pr.number} — ${prTitle}](${prUrl}) was merged.
+
+            ### Original PR Description
+            ${prBody}
+
+            ---
+
+            ### Task for the UI/UX Agent
+
+            Please review the merged changes and implement the corresponding UI/UX
+            in the \`frontend/\` application using **FastUI**.
+
+            Follow the instructions in the \`.github/agents/uiux-agent.agent.md\` agent file.
+
+            **Agent:** \`uiux-agent\`
+            `;
+
+            const { data: issue } = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo:  context.repo.repo,
+              title: issueTitle,
+              body:  issueBody,
+              labels: ['ui/ux', 'copilot'],
+              // Assign to 'copilot' when GitHub Copilot is enabled for this repo.
+              // Remove this line if Copilot is not enabled or the assignee is invalid.
+              assignees: ['copilot'],
+            });
+
+            core.info(`Created issue #${issue.number}: ${issue.html_url}`);
