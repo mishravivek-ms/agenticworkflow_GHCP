@@ -25,45 +25,6 @@ jobs:
       contents: read
 
     steps:
-      - name: Checkout repository (full history)
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Ensure required labels exist
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const labels = [
-              { name: 'ui/ux',   color: '0075ca', description: 'UI/UX related changes' },
-              { name: 'copilot', color: '6e40c9', description: 'Assigned to GitHub Copilot' },
-            ];
-
-            for (const label of labels) {
-              try {
-                await github.rest.issues.getLabel({
-                  owner: context.repo.owner,
-                  repo:  context.repo.repo,
-                  name:  label.name,
-                });
-                core.info(`Label "${label.name}" already exists.`);
-              } catch (err) {
-                if (err.status === 404) {
-                  await github.rest.issues.createLabel({
-                    owner:       context.repo.owner,
-                    repo:        context.repo.repo,
-                    name:        label.name,
-                    color:       label.color,
-                    description: label.description,
-                  });
-                  core.info(`Created label "${label.name}".`);
-                } else {
-                  throw err;
-                }
-              }
-            }
-
       - name: Create UI/UX requirement issue
         uses: actions/github-script@v7
         with:
@@ -74,6 +35,7 @@ jobs:
               core.warning('No pull_request found in the event payload; skipping UI/UX issue creation.');
               return;
             }
+            core.warning('Going to create Issue');
             const prTitle = pr.title;
             const prUrl   = pr.html_url;
             const prBody  = pr.body ?? '(no description provided)';
