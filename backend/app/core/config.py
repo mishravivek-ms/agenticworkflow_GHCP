@@ -1,0 +1,2 @@
+EXPECTED_USERNAME = "username"
+EXPECTED_PASSCODE = "passcode"
