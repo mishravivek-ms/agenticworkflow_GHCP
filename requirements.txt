@@ -1,2 +1,2 @@
-fastapi
-fastui
+fastapi>=0.110.0,<1.0.0
+fastui>=0.1.0,<1.0.0
