@@ -16,7 +16,7 @@ try:
     )
 except ValueError:
     BACKEND_TIMEOUT_SECONDS = DEFAULT_TIMEOUT_SECONDS
-BACKEND_TIMEOUT = httpx.Timeout(BACKEND_TIMEOUT_SECONDS)
+REQUEST_TIMEOUT = httpx.Timeout(BACKEND_TIMEOUT_SECONDS)
 
 app = FastAPI(title="Authentication UI")
 
@@ -70,7 +70,7 @@ def api_index() -> FastUI:
 async def api_login(username: str = Form(...), passcode: str = Form(...)) -> FastUI:
     payload = {"username": username, "passcode": passcode}
     try:
-        async with httpx.AsyncClient(timeout=BACKEND_TIMEOUT) as client:
+        async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
             response = await client.post(f"{BACKEND_URL}/auth/login", json=payload)
         response.raise_for_status()
         data = response.json()
@@ -80,7 +80,9 @@ async def api_login(username: str = Form(...), passcode: str = Form(...)) -> Fas
         try:
             data = exc.response.json()
         except ValueError:
-            return result_page("Authentication service returned an error.", False)
+            return result_page(
+                "Authentication service returned an invalid response format.", False
+            )
         message = data.get("message") or "Authentication service returned an error."
         authenticated = bool(data.get("authenticated"))
         return result_page(message, authenticated)
