@@ -20,5 +20,5 @@ uvicorn app.main:app --reload --port 8000
 ```bash
 curl -X POST "http://localhost:8000/auth/login" \
   -H "Content-Type: application/json" \
-  -d '{"username":"username","password":"passcode"}'
+  -d '{"username":"username","passcode":"passcode"}'
 ```

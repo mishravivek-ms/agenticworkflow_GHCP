@@ -23,7 +23,7 @@ def login_page(message: str | None = None) -> FastUI:
             form_fields=[
                 c.FormField(name="username", title="Username", required=True),
                 c.FormField(
-                    name="password",
+                    name="passcode",
                     title="Passcode",
                     required=True,
                     input_type="password",
@@ -59,15 +59,23 @@ def api_index() -> FastUI:
 
 
 @app.post("/api/login", response_model=FastUI)
-async def api_login(username: str = Form(...), password: str = Form(...)) -> FastUI:
-    payload = {"username": username, "password": password}
+async def api_login(username: str = Form(...), passcode: str = Form(...)) -> FastUI:
+    payload = {"username": username, "passcode": passcode}
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             response = await client.post(f"{BACKEND_URL}/auth/login", json=payload)
         response.raise_for_status()
         data = response.json()
-    except (httpx.RequestError, httpx.HTTPStatusError):
+    except httpx.RequestError:
         return result_page("Unable to reach the authentication service.", False)
+    except httpx.HTTPStatusError as exc:
+        try:
+            data = exc.response.json()
+        except ValueError:
+            return result_page("Authentication service returned an error.", False)
+        message = data.get("message") or "Authentication service returned an error."
+        authenticated = bool(data.get("authenticated"))
+        return result_page(message, authenticated)
 
     authenticated = bool(data.get("authenticated"))
     message = data.get("message") or "Authentication complete."
