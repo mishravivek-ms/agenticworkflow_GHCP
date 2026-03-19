@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 
 import httpx
@@ -79,7 +80,7 @@ async def api_login(username: str = Form(...), passcode: str = Form(...)) -> Fas
     except httpx.HTTPStatusError as exc:
         try:
             data = exc.response.json()
-        except ValueError:
+        except json.JSONDecodeError:
             return result_page(
                 "Authentication service returned an invalid response format.", False
             )
