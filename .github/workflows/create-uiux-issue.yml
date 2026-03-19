@@ -2,12 +2,9 @@ name: Create UI/UX Issue on Merge
 
 # Trigger: fires when a PR is merged into the main branch
 on:
-  workflow_dispatch:
   pull_request:
-    branches:
-      - main
-    types:
-      - closed
+    types: [closed]
+  workflow_dispatch:
 
 # Prevent duplicate runs for the same PR
 concurrency:
