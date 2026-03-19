@@ -15,6 +15,11 @@ uv pip install -e .
 uvicorn app.main:app --reload --port 8000
 ```
 
+## Configuration
+
+Set `VALID_USERNAME` and `VALID_PASSCODE` environment variables to override the
+default development credentials.
+
 ## Example API Usage
 
 ```bash

@@ -9,7 +9,13 @@ from fastui import FastUI, components as c, prebuilt_html
 from fastui.events import GoToEvent
 
 BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
-BACKEND_TIMEOUT_SECONDS = 5.0
+DEFAULT_BACKEND_TIMEOUT_SECONDS = 5.0
+try:
+    BACKEND_TIMEOUT_SECONDS = float(
+        os.getenv("BACKEND_TIMEOUT_SECONDS", str(DEFAULT_BACKEND_TIMEOUT_SECONDS))
+    )
+except ValueError:
+    BACKEND_TIMEOUT_SECONDS = DEFAULT_BACKEND_TIMEOUT_SECONDS
 BACKEND_TIMEOUT = httpx.Timeout(BACKEND_TIMEOUT_SECONDS)
 
 app = FastAPI(title="Authentication UI")
