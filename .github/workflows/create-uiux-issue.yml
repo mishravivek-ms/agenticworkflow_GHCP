@@ -25,9 +25,7 @@ jobs:
     #   3. The source branch does NOT start with "copilot/" (Copilot agent branch prefix).
     if: |
       (github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch') &&
-      github.actor != 'copilot[bot]' &&
-      github.actor != 'github-actions[bot]' &&
-      !startsWith(github.head_ref || '', 'copilot/') &&
+      !contains(github.event.pull_request.labels.*.name, 'automated-uiux') &&
       !contains(github.event.pull_request.labels.*.name, 'skip-uiux-automation')
 
     runs-on: ubuntu-latest
