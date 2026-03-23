@@ -139,26 +139,27 @@ jobs:
               '**Source of truth:** `planned/plan.md` in the repository',
             ].join('\n');
 
-            const createParams = {
+            // Create the issue first, then assign copilot separately.
+            // The checkUserCanBeAssigned API does not work for the 'copilot' bot,
+            // so we skip that check and assign directly after creation.
+            const { data: issue } = await github.rest.issues.create({
               owner:  context.repo.owner,
               repo:   context.repo.repo,
               title:  issueTitle,
               body:   issueBody,
               labels: ['ui/ux', 'copilot'],
-            };
-
-            // Assign to 'copilot' when GitHub Copilot is enabled for this repo.
-            // Wrapped in try/catch so an invalid assignee does not fail the workflow.
-            try {
-              await github.rest.issues.checkUserCanBeAssigned({
-                owner:    context.repo.owner,
-                repo:     context.repo.repo,
-                assignee: 'copilot',
-              });
-              createParams.assignees = ['copilot'];
-            } catch {
-              core.warning('Assignee "copilot" is not valid for this repository — skipping assignment.');
-            }
-
-            const { data: issue } = await github.rest.issues.create(createParams);
+            });
             core.info(`Created issue #${issue.number}: ${issue.html_url}`);
+
+            // Assign 'copilot' to the issue so the Copilot coding agent picks it up
+            try {
+              await github.rest.issues.addAssignees({
+                owner:     context.repo.owner,
+                repo:      context.repo.repo,
+                issue_number: issue.number,
+                assignees: ['copilot'],
+              });
+              core.info(`Assigned 'copilot' to issue #${issue.number}`);
+            } catch (err) {
+              core.warning(`Failed to assign 'copilot' to issue #${issue.number}: ${err.message}`);
+            }
