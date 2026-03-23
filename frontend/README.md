@@ -17,4 +17,4 @@ uv pip install -e .
 uvicorn app.main:app --reload --port 8001
 ```
 
-The frontend expects the backend at `http://localhost:8000`. Update `frontend/app/core/config.py` if you need a different backend URL.
+The frontend expects the backend at `http://localhost:8000`. Set `BACKEND_BASE_URL` to point at a different backend.

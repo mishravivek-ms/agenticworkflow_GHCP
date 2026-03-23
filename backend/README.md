@@ -17,7 +17,8 @@ uv pip install -e .
 uvicorn app.main:app --reload
 ```
 
-The backend defaults to `username` / `passcode` credentials. Override with `AUTH_USERNAME` and `AUTH_PASSWORD` if needed.
+The backend defaults to `username` / `passcode` credentials for local development. Override with `AUTH_USERNAME` and
+`AUTH_PASSWORD` for real deployments.
 
 ## Example API Usage
 
