@@ -1,4 +1,5 @@
 import logging
+import secrets
 
 from fastapi import FastAPI
 
@@ -10,7 +11,9 @@ logger = logging.getLogger(__name__)
 app = FastAPI(title="Authentication Service")
 app.include_router(auth_router, prefix="/api")
 
-if settings.auth_username == "username" and settings.auth_password == "passcode":
+if secrets.compare_digest(settings.auth_username, "username") and secrets.compare_digest(
+    settings.auth_password, "passcode"
+):
     logger.warning("Using default credentials for development; set AUTH_USERNAME/AUTH_PASSWORD for production.")
 
 
