@@ -13,8 +13,8 @@ async def authenticate_user(payload: LoginRequest) -> LoginResponse:
                 f"{settings.backend_base_url}/api/login",
                 json=payload.model_dump(),
             )
-    except httpx.RequestError as exc:
-        logging.getLogger(__name__).exception("Failed to reach backend", exc_info=exc)
+    except httpx.RequestError:
+        logging.getLogger(__name__).exception("Failed to reach backend")
         return LoginResponse(success=False, message="Backend unavailable")
 
     try:
