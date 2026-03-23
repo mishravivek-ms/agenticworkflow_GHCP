@@ -2,7 +2,7 @@
 
 ## Overview
 
-Build a minimal **login / authentication** application using:
+Build a minimal **login / authentication** application using :
 
 | Layer    | Technology      |
 |----------|-----------------|
