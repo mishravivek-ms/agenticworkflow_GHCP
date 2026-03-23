@@ -12,7 +12,7 @@ Build a minimal **login / authentication** application using:
 | API Style | REST           |
 
 The backend validates a username/password pair against hardcoded credentials.  
-The frontend provides a login form and displays the result to the user.
+The frontend provides a login form and displays the result to the user. 
 
 ---
 
