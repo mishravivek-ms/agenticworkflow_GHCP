@@ -5,6 +5,8 @@ import httpx
 from app.core.config import settings
 from app.models.auth import LoginRequest, LoginResponse
 
+logger = logging.getLogger(__name__)
+
 
 async def authenticate_user(payload: LoginRequest) -> LoginResponse:
     try:
@@ -13,8 +15,8 @@ async def authenticate_user(payload: LoginRequest) -> LoginResponse:
                 f"{settings.backend_base_url}/api/login",
                 json=payload.model_dump(),
             )
-    except httpx.RequestError:
-        logging.getLogger(__name__).exception("Failed to reach backend")
+    except httpx.RequestError as exc:
+        logger.exception("Backend request failed: %s", exc)
         return LoginResponse(success=False, message="Backend unavailable")
 
     try:
