@@ -78,7 +78,7 @@ The frontend provides a login form and displays the result to the user.
 
 - [ ] Add `CORSMiddleware` to allow the frontend origin (e.g. `http://localhost:3000`) so the browser can call the backend API
 
-#### 2e. Run the Backend
+#### 2e. Run the Backend 
 
 - [ ] Start with: `uvicorn main:app --reload --port 8000`
 
