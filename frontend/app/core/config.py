@@ -1,12 +1,12 @@
 import os
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
+
+BACKEND_BASE_URL = os.getenv("BACKEND_BASE_URL", "http://localhost:8000")
 
 
 class Settings(BaseModel):
-    backend_base_url: str = Field(
-        default_factory=lambda: os.getenv("BACKEND_BASE_URL", "http://localhost:8000")
-    )
+    backend_base_url: str = BACKEND_BASE_URL
 
 
 settings = Settings()

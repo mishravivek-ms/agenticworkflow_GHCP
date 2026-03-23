@@ -28,7 +28,7 @@ async def authenticate_user(payload: LoginRequest) -> LoginResponse:
         if isinstance(data, dict):
             return LoginResponse(**data)
         logger.warning("Unexpected success payload from backend: %s", data)
-        return LoginResponse(success=False, message="Unexpected response from backend")
+        return LoginResponse(success=False, message="Backend returned unexpected payload")
 
     detail = data.get("detail", "Invalid credentials") if isinstance(data, dict) else "Invalid credentials"
     return LoginResponse(success=False, message=detail)
