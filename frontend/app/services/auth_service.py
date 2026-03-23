@@ -1,3 +1,5 @@
+import logging
+
 import httpx
 
 from app.core.config import settings
@@ -11,11 +13,17 @@ async def authenticate_user(payload: LoginRequest) -> LoginResponse:
                 f"{settings.backend_base_url}/api/login",
                 json=payload.model_dump(),
             )
-    except httpx.RequestError:
+    except httpx.RequestError as exc:
+        logging.getLogger(__name__).exception("Failed to reach backend", exc_info=exc)
         return LoginResponse(success=False, message="Backend unavailable")
 
-    if response.status_code == httpx.codes.OK:
-        return LoginResponse(**response.json())
+    try:
+        data = response.json()
+    except ValueError:
+        return LoginResponse(success=False, message="Unexpected response from backend")
 
-    detail = response.json().get("detail", "Invalid credentials")
+    if response.status_code == httpx.codes.OK:
+        return LoginResponse(**data)
+
+    detail = data.get("detail", "Invalid credentials") if isinstance(data, dict) else "Invalid credentials"
     return LoginResponse(success=False, message=detail)
