@@ -22,8 +22,10 @@ async def authenticate_user(payload: LoginRequest) -> LoginResponse:
     except ValueError:
         return LoginResponse(success=False, message="Unexpected response from backend")
 
-    if response.status_code == httpx.codes.OK:
-        return LoginResponse(**data)
+    if response.is_success:
+        if isinstance(data, dict):
+            return LoginResponse(**data)
+        return LoginResponse(success=True, message="Authenticated")
 
     detail = data.get("detail", "Invalid credentials") if isinstance(data, dict) else "Invalid credentials"
     return LoginResponse(success=False, message=detail)
