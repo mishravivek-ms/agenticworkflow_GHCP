@@ -1,0 +1,11 @@
+- [ ] Initialize backend project structure with FastAPI app, settings, and dependency management
+- [ ] Add login request/response models plus hardcoded username/password (passcode) check service logic
+- [ ] Implement POST /login endpoint that validates credentials and returns success/error payloads
+- [ ] Configure CORS/ENV wiring so frontend can reach backend base URL
+- [ ] Scaffold FastUI frontend app entry point with layout and routing
+- [ ] Build login screen form (username/password) with client-side validation and submit action
+- [ ] Wire frontend submit to backend /login endpoint and handle success/failure UI states
+- [ ] Add integration hints (env vars, ports) for running backend + frontend together
+- [ ] Write backend tests for login success/failure and error cases
+- [ ] Add frontend smoke test/health route or basic UI test coverage (as applicable)
+- [ ] Update project README docs with setup, run, and login usage instructions
