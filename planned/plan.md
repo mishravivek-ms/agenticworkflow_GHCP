@@ -1,7 +1,7 @@
 # Project Plan: Basic Authentication Flow
 
 ## Overview
-Build a new project with a basic authentication flow using FastAPI (backend) and FastUI (frontend), managed with `uv` and targeting Python 3.11+.
+Build a new project with a basic authentication flow using FastAPI (backend) and FastUI (frontend), managed with `uv` and targeting Python 3.11+..
 
 ---
 
