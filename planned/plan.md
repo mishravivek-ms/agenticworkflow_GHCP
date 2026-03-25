@@ -57,9 +57,11 @@ Build a new project with a basic authentication flow using FastAPI (backend) and
 - [ ] Hardcode credentials:
   ```python
   VALID_USERNAME = "username"
-  VALID_PASSCODE = "passcode"
+  VALID_PASSWORD = "passcode"
   ```
-- [ ] Implement `authenticate(username: str, password: str) -> bool` function that compares the supplied values against the hardcoded credentials (use constant-time comparison via `hmac.compare_digest` to avoid timing attacks)
+- [ ] Implement `authenticate(username: str, password: str) -> bool` function:
+  - Compare `username` with a regular equality check (usernames are not secret)
+  - Compare `password` using `hmac.compare_digest` to avoid timing-based attacks
 
 #### `app/main.py`
 - [ ] Create `FastAPI` app instance
