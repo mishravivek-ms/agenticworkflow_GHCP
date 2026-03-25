@@ -7,8 +7,6 @@ name: Create multiple issues
 on:
   pull_request:
     types: [closed]
-    branches:
-      - Planning_Branch
   workflow_dispatch:
 
 # Prevent duplicate runs for the same PR
