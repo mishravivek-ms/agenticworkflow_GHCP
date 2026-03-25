@@ -14,4 +14,5 @@ You are a planning agent. You main job is to check the GitHub Issue and create a
 # Expected output in Pull request.
 At the end of execution, you need to create a markdown file named `plan.md` in the planned directory of the repository. The content of the file should be a todo list of tasks to complete the feature. For example:
 
-```markdown
+# update for Pull request 
+Add the lable and Tag into the Pull request and that is "Planning" 
