@@ -1,7 +1,7 @@
 name: Trigger UI/UX Agent on PR Merge
 
 # Trigger: fires when a PR is merged into Planning_Branch, or manually via workflow_dispatch.
-# The workflow reads planning.md from the merged branch, extracts the UI/UX section,
+# The workflow reads planned/plan.md from the merged branch, extracts the UI/UX section,
 # and creates a GitHub Issue assigned to the Copilot coding agent.
 # The agent then implements the changes and opens a new PR automatically.
 on:
@@ -43,19 +43,19 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.base.ref || github.ref_name }}
 
-      # Check whether planning.md exists; surface a clear message when it is absent
-      - name: Check for planning.md
+      # Check whether planned/plan.md exists; surface a clear message when it is absent
+      - name: Check for planned/plan.md
         id: check-planning
         run: |
-          if [ -f "planning.md" ]; then
+          if [ -f "planned/plan.md" ]; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::planning.md not found on branch ${{ github.event.pull_request.base.ref || github.ref_name }}. Skipping UI/UX issue creation."
+            echo "::warning::planned/plan.md not found on branch ${{ github.event.pull_request.base.ref || github.ref_name }}. Skipping UI/UX issue creation."
           fi
 
-      # Read planning.md, extract the UI/UX section, and create an issue for the agent
-      - name: Create UI/UX agent issue from planning.md
+      # Read planned/plan.md, extract the UI/UX section, and create an issue for the agent
+      - name: Create UI/UX agent issue from planned/plan.md
         if: steps.check-planning.outputs.exists == 'true'
         uses: actions/github-script@v7
         with:
@@ -64,7 +64,7 @@ jobs:
             const fs = require('fs');
 
             // --- Dedup: skip if an identical open issue already exists ---
-            const issueTitle = '[UI/UX] Implement changes from planning.md';
+            const issueTitle = '[UI/UX] Implement changes from planned/plan.md';
             const { data: existingIssues } = await github.rest.issues.listForRepo({
               owner: context.repo.owner,
               repo:  context.repo.repo,
@@ -98,8 +98,8 @@ jobs:
               }
             }
 
-            // Read planning.md from the checked-out workspace
-            const planningContent = fs.readFileSync('planning.md', 'utf8');
+            // Read planned/plan.md from the checked-out workspace
+            const planningContent = fs.readFileSync('planned/plan.md', 'utf8');
 
             // Extract the UI/UX section.
             // Matches any ##-level heading that starts with "UI" followed by optional
@@ -123,7 +123,7 @@ jobs:
               '',
               '---',
               '',
-              '### UI/UX Changes from `planning.md`',
+              '### UI/UX Changes from `planned/plan.md`',
               '',
               uiuxSection,
               '',
@@ -139,29 +139,28 @@ jobs:
               '- Label your PR with `automated-uiux` to prevent re-triggering this workflow.',
               '',
               '**Agent:** `ui-uxagent`',
-              '**Source of truth:** `planning.md` at the root of the repository',
+              '**Source of truth:** `planned/plan.md` in the repository',
             ].join('\n');
 
-            const createParams = {
+            // Create the issue first, then assign copilot separately.
+            const { data: issue } = await github.rest.issues.create({
               owner:  context.repo.owner,
               repo:   context.repo.repo,
               title:  issueTitle,
               body:   issueBody,
               labels: ['ui/ux', 'copilot'],
-            };
-
-            // Assign to 'copilot' when GitHub Copilot is enabled for this repo.
-            // Wrapped in try/catch so an invalid assignee does not fail the workflow.
-            try {
-              await github.rest.issues.checkUserCanBeAssigned({
-                owner:    context.repo.owner,
-                repo:     context.repo.repo,
-                assignee: 'copilot',
-              });
-              createParams.assignees = ['copilot'];
-            } catch {
-              core.warning('Assignee "copilot" is not valid for this repository — skipping assignment.');
-            }
-
-            const { data: issue } = await github.rest.issues.create(createParams);
+            });
             core.info(`Created issue #${issue.number}: ${issue.html_url}`);
+
+            // Assign 'copilot' to the issue so the Copilot coding agent picks it up
+            try {
+              await github.rest.issues.addAssignees({
+                owner:     context.repo.owner,
+                repo:      context.repo.repo,
+                issue_number: issue.number,
+                assignees: ['copilot'],
+              });
+              core.info(`Assigned 'copilot' to issue #${issue.number}`);
+            } catch (err) {
+              core.warning(`Failed to assign 'copilot' to issue #${issue.number}: ${err.message}`);
+            }
