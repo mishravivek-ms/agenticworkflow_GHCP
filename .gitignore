@@ -1,0 +1,15 @@
+# Python virtual environments
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# uv lock (optional – include if you want reproducible installs)
+# uv.lock
+
+# Pytest cache
+.pytest_cache/
+
+# Dist / build artifacts
+dist/
+*.egg-info/
