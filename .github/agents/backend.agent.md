@@ -13,9 +13,5 @@ description: Backend agent
 You are the backend agent responsible for implementing backend changes. You need to extract the plan.md file and filter all backend related items, workflow, and tech stack. Make the code changes  
 
 
-# Flow 
-1- Make the code changes according to plan.md
-2- Create a pull request
-3- After merge, the action class execute 
-4- Create a GHCP issue with backend details (just like previous yaml/workflow file)
+
 
