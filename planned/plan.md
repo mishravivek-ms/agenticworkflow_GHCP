@@ -1,297 +1,383 @@
-# Plan: Basic Authentication Flow
+# Plan: Fix Workflow Skipping After PR Merge
 
 ## Overview
 
-Build a minimal full-stack web application with a login screen (FastUI frontend) and a REST
-authentication endpoint (FastAPI backend). The backend validates credentials against a single
-hard-coded user. The project is managed with **uv** and targets **Python 3.11+**.
+The GitHub Actions workflow (`.github/workflows/mainworkflow.yml`) is designed to fire after a PR is merged and create three GitHub Issues (UI/UX, Backend, Testing) assigned to the Copilot coding agent. However, the workflow is **always skipped** when a Copilot-created PR is merged, due to two bugs in the workflow logic:
+
+1. **Branch filter blocks Copilot PRs** – The job `if` condition contains `!startsWith(github.head_ref || '', 'copilot/')`, which unconditionally skips any PR from a branch whose name starts with `copilot/`. Since the planning agent always creates branches like `copilot/plan-*`, the workflow never runs after the plan PR is merged.
+
+2. **Wrong file path for the plan** – The workflow checks for `planning.md` at the repository root, but the actual planning document lives at `planned/plan.md`. Even if bug #1 were fixed, the step "Create agent issues" would still be skipped because `planning.md` never exists at the root.
+
+**Additional improvement**: Issue bodies currently contain only a generic static string. They should embed the actual content of `planned/plan.md` so the Copilot agents have all the context they need to implement the feature.
 
 ---
 
-## Tech Stack
+## Root Cause Analysis
 
-| Layer | Technology |
-|---|---|
-| Language | Python 3.11+ |
-| Package manager | uv |
-| Backend framework | FastAPI |
-| Frontend framework | FastUI (served by FastAPI) |
-| API style | REST (JSON) |
-| Server | Uvicorn (ASGI) |
+| # | Root Cause | Location | Effect |
+|---|---|---|---|
+| 1 | `!startsWith(github.head_ref \|\| '', 'copilot/')` | `mainworkflow.yml` job `if` condition (line 28) | Job is skipped for all Copilot-created planning PRs |
+| 2 | Checks for `planning.md` at repo root | `mainworkflow.yml` step "Check for planning.md" (line 47) | Issue creation step is skipped; file is actually at `planned/plan.md` |
+| 3 | Issue bodies are static generic strings | `mainworkflow.yml` issue definition block (lines 101–114) | Copilot agents lack the plan context needed to implement the feature |
 
 ---
 
-## Project Structure
+## Desired Workflow Behaviour (After Fix)
 
 ```
-agenticworkflow_GHCP/
-├── planned/
-│   └── plan.md               # this file
-├── pyproject.toml            # uv project manifest
-├── uv.lock                   # uv lock file (auto-generated)
-├── README.md
-└── app/
-    ├── __init__.py
-    ├── main.py               # FastAPI application entry-point
-    ├── auth.py               # authentication logic
-    └── frontend.py           # FastUI page definitions
+PR merged into main/default branch
+        │
+        ▼
+Does the PR modify `planned/plan.md`?
+        │
+   Yes  │  No ──► Skip (no new plan to act on)
+        │
+        ▼
+Read content of `planned/plan.md`
+        │
+        ▼
+Create three GitHub Issues (UI/UX, Backend, Testing)
+  • Each issue body includes the full plan content
+  • Each issue is labelled `copilot` and assigned to the Copilot agent
+  • Duplicate open issues with the same title are skipped
 ```
+
+To avoid infinite loops (Copilot implementation PRs triggering more issues), the workflow will only fire when `planned/plan.md` is modified in the merged PR. Implementation PRs (UI/UX, backend, testing) will never touch `planned/plan.md`, so they will be naturally filtered out without needing actor- or branch-based exclusions.
 
 ---
 
 ## Task List
 
-### 1. Project Initialisation
+### 1. Fix Job-Level `if` Condition
 
-- [ ] **1.1** Initialise the project with `uv`:
-  ```bash
-  uv init --python 3.11
+**File:** `.github/workflows/mainworkflow.yml`
+
+- [ ] **1.1** Remove the `!startsWith(github.head_ref || '', 'copilot/')` line from the job `if` condition. This line was added to prevent infinite loops but it also blocks the planning-agent PR from triggering issue creation.
+- [ ] **1.2** Remove the `github.actor != 'copilot[bot]'` and `github.actor != 'github-actions[bot]'` exclusions. These are no longer needed once we use path-based filtering (step 2 below) to distinguish planning PRs from implementation PRs.
+- [ ] **1.3** Remove the `!contains(github.event.pull_request.labels.*.name, 'skip-uiux-automation')` label-based exclusion. Replace this with path-based filtering so the logic is explicit and self-documenting.
+- [ ] **1.4** The simplified job `if` condition should become:
+
+  ```yaml
+  if: >
+    github.event.pull_request.merged == true ||
+    github.event_name == 'workflow_dispatch'
   ```
-- [ ] **1.2** Add required dependencies via `uv add`:
-  ```bash
-  uv add fastapi "fastui" uvicorn
-  ```
-  Expected `pyproject.toml` dependencies block:
-  ```toml
-  [project]
-  name = "agenticworkflow-ghcp"
-  version = "0.1.0"
-  requires-python = ">=3.11"
-  dependencies = [
-      "fastapi>=0.110.0",
-      "fastui>=0.6.0",
-      "uvicorn[standard]>=0.29.0",
-  ]
-  ```
-- [ ] **1.3** Create the `app/` package directory with an empty `app/__init__.py`.
 
----
+  > **Loop-safety note:** Loop prevention is now handled entirely by path filtering in step 1.5 — only PRs that touch `planned/plan.md` will proceed to create issues. Implementation agent PRs (UI/UX, backend, testing) never modify `planned/plan.md`, so no issues will be created for them.
 
-### 2. Backend – `app/auth.py`
+- [ ] **1.5** Add a new step immediately after the checkout step to detect whether `planned/plan.md` was changed in the merged PR. Use `git diff` against the base SHA to identify modified files:
 
-Implement credential validation against a single hard-coded user.
-
-- [ ] **2.1** Define the hard-coded credentials as module-level constants:
-  ```python
-  HARDCODED_USERNAME = "username"
-  HARDCODED_PASSCODE = "passcode"
-  ```
-- [ ] **2.2** Create a Pydantic request model `LoginRequest`:
-  ```python
-  from pydantic import BaseModel
-
-  class LoginRequest(BaseModel):
-      username: str
-      passcode: str
-  ```
-- [ ] **2.3** Create a Pydantic response model `LoginResponse`:
-  ```python
-  class LoginResponse(BaseModel):
-      success: bool
-      message: str
-  ```
-- [ ] **2.4** Implement the `authenticate(req: LoginRequest) -> LoginResponse` function that:
-  - Returns `LoginResponse(success=True, message="Login successful")` when both fields match the constants.
-  - Returns `LoginResponse(success=False, message="Invalid username or passcode")` otherwise.
-  - Uses constant-time comparison (`secrets.compare_digest`) to avoid timing attacks.
-
----
-
-### 3. Backend – `app/main.py`
-
-Wire up the FastAPI app, REST endpoint, and FastUI static assets.
-
-- [ ] **3.1** Create the FastAPI application instance:
-  ```python
-  from fastapi import FastAPI
-  app = FastAPI(title="Auth Demo")
-  ```
-- [ ] **3.2** Mount the FastUI prebuilt static files so the browser can load the React bundle:
-  ```python
-  from fastui import prebuilt_html
-  from fastapi.responses import HTMLResponse
-
-  @app.get("/", response_class=HTMLResponse)
-  async def root():
-      return prebuilt_html(title="Login")
-  ```
-- [ ] **3.3** Register the FastUI API router (see Section 4) under the `/api` prefix:
-  ```python
-  from app.frontend import router as frontend_router
-  app.include_router(frontend_router, prefix="/api")
-  ```
-- [ ] **3.4** Register the authentication REST endpoint `POST /auth/login`:
-  ```python
-  from app.auth import LoginRequest, LoginResponse, authenticate
-
-  @app.post("/auth/login", response_model=LoginResponse)
-  async def login(req: LoginRequest) -> LoginResponse:
-      return authenticate(req)
-  ```
-- [ ] **3.5** Add a Uvicorn entry-point for local development at the bottom of the file:
-  ```python
-  if __name__ == "__main__":
-      import uvicorn
-      uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
+  ```yaml
+  - name: Check if planned/plan.md was modified
+    id: check-plan-changed
+    run: |
+      BASE_SHA="${{ github.event.pull_request.base.sha }}"
+      HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+      if [ -n "$BASE_SHA" ] && [ -n "$HEAD_SHA" ]; then
+        CHANGED=$(git diff --name-only "$BASE_SHA" "$HEAD_SHA" 2>/dev/null || echo "")
+      else
+        # workflow_dispatch: treat as changed so manual trigger always works
+        CHANGED="planned/plan.md"
+      fi
+      if echo "$CHANGED" | grep -q "^planned/plan.md$"; then
+        echo "changed=true" >> "$GITHUB_OUTPUT"
+      else
+        echo "changed=false" >> "$GITHUB_OUTPUT"
+        echo "::notice::planned/plan.md was not modified in this PR — skipping issue creation."
+      fi
   ```
 
 ---
 
-### 4. Frontend – `app/frontend.py`
+### 2. Fix the `planned/plan.md` Path Check
 
-Build the FastUI login page. FastUI renders React components from Python objects and communicates
-with the backend over the `/api` prefix.
+**File:** `.github/workflows/mainworkflow.yml`
 
-- [ ] **4.1** Create an APIRouter for FastUI page routes:
-  ```python
-  from fastapi import APIRouter
-  router = APIRouter()
+- [ ] **2.1** Update the "Check for planning.md" step to look for `planned/plan.md` instead of `planning.md`:
+
+  ```yaml
+  - name: Check for planned/plan.md
+    id: check-planning
+    if: steps.check-plan-changed.outputs.changed == 'true'
+    run: |
+      if [ -f "planned/plan.md" ]; then
+        echo "exists=true" >> "$GITHUB_OUTPUT"
+      else
+        echo "exists=false" >> "$GITHUB_OUTPUT"
+        echo "::warning::planned/plan.md not found on branch ${{ github.event.pull_request.base.ref || github.ref_name }}. Skipping issue creation."
+      fi
   ```
-- [ ] **4.2** Define the `/` page route that renders the login form:
-  ```python
-  from fastui import AnyComponent
-  from fastui.components import Page, Heading, ModelForm
-  from fastui.events import GoToEvent
 
-  @router.get("/", response_model=list[AnyComponent])
-  async def login_page() -> list[AnyComponent]:
-      return [
-          Page(
-              components=[
-                  Heading(text="Login", level=2),
-                  ModelForm(
-                      model=LoginFormModel,
-                      submit_url="/auth/login",
-                      submit_trigger=GoToEvent(url="/success"),
-                  ),
-              ]
-          )
-      ]
-  ```
-- [ ] **4.3** Define a Pydantic model `LoginFormModel` that FastUI uses to generate the form fields:
-  ```python
-  from pydantic import BaseModel, Field
+- [ ] **2.2** Update the `if` condition on the "Create agent issues" step to also guard on `check-plan-changed`:
 
-  class LoginFormModel(BaseModel):
-      username: str = Field(title="Username", description="Enter your username")
-      passcode: str = Field(title="Passcode", description="Enter your passcode", json_schema_extra={"format": "password"})
-  ```
-- [ ] **4.4** Define a `/success` page route that is rendered after successful login:
-  ```python
-  @router.get("/success", response_model=list[AnyComponent])
-  async def success_page() -> list[AnyComponent]:
-      return [
-          Page(
-              components=[
-                  Heading(text="Welcome!", level=2),
-              ]
-          )
-      ]
-  ```
-- [ ] **4.5** Define a `/api/components` catch-all that FastUI requires to render non-matched routes gracefully (return 404 FastUI page or redirect to `/`).
-
----
-
-### 5. REST API Contract
-
-| Method | Path | Request body | Success response | Error response |
-|---|---|---|---|---|
-| `POST` | `/auth/login` | `{"username": "...", "passcode": "..."}` | `200 {"success": true, "message": "Login successful"}` | `200 {"success": false, "message": "Invalid username or passcode"}` |
-| `GET` | `/` | — | HTML (FastUI shell) | — |
-| `GET` | `/api/` | — | FastUI JSON components (login form) | — |
-| `GET` | `/api/success` | — | FastUI JSON components (welcome page) | — |
-
-> **Note:** Authentication failures return HTTP 200 with `success: false` rather than 401,
-> to keep the FastUI `ModelForm` redirect flow simple. A production system should use 401 with
-> proper session/token management.
-
----
-
-### 6. Hard-coded Credentials (Backend)
-
-| Field | Value |
-|---|---|
-| Username | `username` |
-| Passcode | `passcode` |
-
-These are defined as constants in `app/auth.py` and **must not** be moved to environment
-variables or a database for this phase.
-
----
-
-### 7. Running the Application
-
-- [ ] **7.1** Document the run command in `README.md`:
-  ```bash
-  # Install dependencies
-  uv sync
-
-  # Start the development server
-  uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-  ```
-- [ ] **7.2** The login UI is available at `http://localhost:8000/`.
-- [ ] **7.3** The REST endpoint is available at `http://localhost:8000/auth/login`.
-- [ ] **7.4** The interactive API docs are at `http://localhost:8000/docs`.
-
----
-
-### 8. Testing
-
-- [ ] **8.1** Add `pytest` and `httpx` as dev dependencies:
-  ```bash
-  uv add --dev pytest httpx
-  ```
-- [ ] **8.2** Create `tests/__init__.py` (empty).
-- [ ] **8.3** Create `tests/test_auth.py` with the following test cases:
-
-  | Test name | Input | Expected |
-  |---|---|---|
-  | `test_login_success` | `{"username": "username", "passcode": "passcode"}` | `200`, `success=true` |
-  | `test_login_wrong_password` | `{"username": "username", "passcode": "wrong"}` | `200`, `success=false` |
-  | `test_login_wrong_username` | `{"username": "wrong", "passcode": "passcode"}` | `200`, `success=false` |
-  | `test_login_both_wrong` | `{"username": "wrong", "passcode": "wrong"}` | `200`, `success=false` |
-  | `test_login_empty_fields` | `{"username": "", "passcode": ""}` | `200`, `success=false` |
-
-- [ ] **8.4** Use FastAPI's `TestClient` (backed by `httpx`) to exercise the `/auth/login` endpoint.
-- [ ] **8.5** Run tests with:
-  ```bash
-  uv run pytest tests/ -v
+  ```yaml
+  if: steps.check-plan-changed.outputs.changed == 'true' && steps.check-planning.outputs.exists == 'true'
   ```
 
 ---
 
-### 9. UI/UX Requirements
+### 3. Embed `planned/plan.md` Content in Issue Bodies
 
-- [ ] **9.1** The login screen must have:
-  - A page heading "Login".
-  - A "Username" text input field.
-  - A "Passcode" password input field (characters masked).
-  - A submit button labelled "Submit".
-- [ ] **9.2** On successful login the user is redirected to the success page showing "Welcome!".
-- [ ] **9.3** On failure the form should display an inline error message (FastUI handles this via
-  the `ModelForm` error response from the server – the backend must return an HTTP 422 with a
-  FastUI-compatible error payload when credentials are wrong, or the frontend must be configured
-  to show a toast/alert).
-- [ ] **9.4** The page must be responsive and render correctly on mobile viewport widths.
+**File:** `.github/workflows/mainworkflow.yml`
+
+- [ ] **3.1** Add a step before the issue-creation step to read `planned/plan.md` into an output variable:
+
+  ```yaml
+  - name: Read plan content
+    id: read-plan
+    if: steps.check-plan-changed.outputs.changed == 'true' && steps.check-planning.outputs.exists == 'true'
+    run: |
+      PLAN_CONTENT=$(cat planned/plan.md)
+      # Use GitHub's multiline output syntax
+      {
+        echo "content<<EOF_PLAN"
+        echo "$PLAN_CONTENT"
+        echo "EOF_PLAN"
+      } >> "$GITHUB_OUTPUT"
+  ```
+
+- [ ] **3.2** Update the issue definitions in the `actions/github-script` step to include the plan content in each issue body. Pass the plan content via an environment variable to avoid quoting issues:
+
+  ```yaml
+  env:
+    PLAN_CONTENT: ${{ steps.read-plan.outputs.content }}
+  ```
+
+  Issue body template for each agent type:
+
+  ```
+  ## Task: <Agent Type> Changes
+
+  Implement the <agent type> changes described in `planned/plan.md`.
+
+  ---
+
+  ## Plan Content
+
+  <plan content injected here>
+
+  ---
+
+  > This issue was automatically created by the CI workflow after merging the planning PR.
+  > Implement only the <agent type> section of the plan above.
+  ```
+
+- [ ] **3.3** Update the three issue definitions in the script:
+
+  ```javascript
+  const planContent = process.env.PLAN_CONTENT || '_(plan content unavailable)_';
+
+  const issues = [
+    {
+      title: 'UI/UX changes',
+      body: `## Task: UI/UX Changes\n\nImplement the UI/UX changes described in \`planned/plan.md\`.\n\n---\n\n## Plan Content\n\n${planContent}\n\n---\n\n> This issue was automatically created by the CI workflow after merging the planning PR.\n> Implement only the UI/UX section of the plan above.`,
+    },
+    {
+      title: 'Backend changes',
+      body: `## Task: Backend Changes\n\nImplement the backend service changes described in \`planned/plan.md\`.\n\n---\n\n## Plan Content\n\n${planContent}\n\n---\n\n> This issue was automatically created by the CI workflow after merging the planning PR.\n> Implement only the backend section of the plan above.`,
+    },
+    {
+      title: 'Testing changes',
+      body: `## Task: Testing Changes\n\nImplement the testing framework changes described in \`planned/plan.md\`.\n\n---\n\n## Plan Content\n\n${planContent}\n\n---\n\n> This issue was automatically created by the CI workflow after merging the planning PR.\n> Implement only the testing section of the plan above.`,
+    },
+  ];
+  ```
 
 ---
 
-### 10. Security Considerations (Phase 1)
+### 4. Complete Updated Workflow File
 
-- [ ] **10.1** Use `secrets.compare_digest` in `app/auth.py` to prevent timing-based username
-  or passcode enumeration.
-- [ ] **10.2** The passcode field must be rendered as `type="password"` in the browser (masked).
-- [ ] **10.3** Do **not** log the passcode value anywhere.
-- [ ] **10.4** No session, token, or cookie is required for Phase 1.
+**File:** `.github/workflows/mainworkflow.yml`
+
+Replace the entire file with the following (this is the canonical target state after all fixes):
+
+```yaml
+name: Create multiple issues
+
+# Trigger: fires when a PR is merged (and planned/plan.md was modified),
+# or manually via workflow_dispatch.
+# Reads planned/plan.md and creates three GitHub Issues (UI/UX, Backend, Testing)
+# assigned to the Copilot coding agent.
+on:
+  pull_request:
+    types: [closed]
+    paths:
+      - 'planned/plan.md'
+  workflow_dispatch:
+
+# Prevent duplicate runs for the same PR
+concurrency:
+  group: trigger-agents-${{ github.event.pull_request.number || 'manual' }}
+  cancel-in-progress: false
+
+jobs:
+  create-agent-issues:
+    # Only run when the PR was actually merged (not just closed),
+    # OR this is a manual dispatch.
+    if: >
+      github.event.pull_request.merged == true ||
+      github.event_name == 'workflow_dispatch'
+
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      contents: read
+
+    steps:
+      # Check out the target branch (after merge) so we can read planned/plan.md
+      - name: Checkout target branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.ref || github.ref_name }}
+          fetch-depth: 0
+
+      # Check whether planned/plan.md exists
+      - name: Check for planned/plan.md
+        id: check-planning
+        run: |
+          if [ -f "planned/plan.md" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::planned/plan.md not found on branch ${{ github.event.pull_request.base.ref || github.ref_name }}. Skipping issue creation."
+          fi
+
+      # Read plan content into an output variable
+      - name: Read plan content
+        id: read-plan
+        if: steps.check-planning.outputs.exists == 'true'
+        run: |
+          {
+            echo "content<<EOF_PLAN"
+            cat planned/plan.md
+            echo "EOF_PLAN"
+          } >> "$GITHUB_OUTPUT"
+
+      # Create three issues: UI/UX, Backend, and Testing
+      - name: Create agent issues from planned/plan.md
+        if: steps.check-planning.outputs.exists == 'true'
+        uses: actions/github-script@v7
+        env:
+          PLAN_CONTENT: ${{ steps.read-plan.outputs.content }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            // --- Ensure the 'copilot' label exists ---
+            try {
+              await github.rest.issues.getLabel({
+                owner: context.repo.owner,
+                repo:  context.repo.repo,
+                name:  'copilot',
+              });
+            } catch {
+              await github.rest.issues.createLabel({
+                owner: context.repo.owner,
+                repo:  context.repo.repo,
+                name:  'copilot',
+                color: '1d76db',
+              });
+              core.info('Created missing label: "copilot"');
+            }
+
+            // --- Check if copilot can be assigned ---
+            let canAssignCopilot = false;
+            try {
+              await github.rest.issues.checkUserCanBeAssigned({
+                owner:    context.repo.owner,
+                repo:     context.repo.repo,
+                assignee: 'copilot',
+              });
+              canAssignCopilot = true;
+            } catch {
+              core.warning('Assignee "copilot" is not valid for this repository — skipping assignment.');
+            }
+
+            // --- Fetch existing open copilot issues for dedup ---
+            const { data: existingIssues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo:  context.repo.repo,
+              state: 'open',
+              labels: 'copilot',
+              per_page: 100,
+            });
+
+            const planContent = process.env.PLAN_CONTENT || '_(plan content unavailable)_';
+
+            // --- Define the three issues ---
+            const issues = [
+              {
+                title: 'UI/UX changes',
+                body: `## Task: UI/UX Changes\n\nImplement the UI/UX changes described in \`planned/plan.md\`.\n\n---\n\n## Plan Content\n\n${planContent}\n\n---\n\n> This issue was automatically created by the CI workflow after merging the planning PR.\n> Implement only the UI/UX section of the plan above.`,
+              },
+              {
+                title: 'Backend changes',
+                body: `## Task: Backend Changes\n\nImplement the backend service changes described in \`planned/plan.md\`.\n\n---\n\n## Plan Content\n\n${planContent}\n\n---\n\n> This issue was automatically created by the CI workflow after merging the planning PR.\n> Implement only the backend section of the plan above.`,
+              },
+              {
+                title: 'Testing changes',
+                body: `## Task: Testing Changes\n\nImplement the testing framework changes described in \`planned/plan.md\`.\n\n---\n\n## Plan Content\n\n${planContent}\n\n---\n\n> This issue was automatically created by the CI workflow after merging the planning PR.\n> Implement only the testing section of the plan above.`,
+              },
+            ];
+
+            // --- Create each issue (skip duplicates) ---
+            for (const issue of issues) {
+              const duplicate = existingIssues.find(i => i.title === issue.title);
+              if (duplicate) {
+                core.info(`Open issue already exists: #${duplicate.number} "${issue.title}" — skipping.`);
+                continue;
+              }
+
+              const createParams = {
+                owner:  context.repo.owner,
+                repo:   context.repo.repo,
+                title:  issue.title,
+                body:   issue.body,
+                labels: ['copilot'],
+              };
+
+              if (canAssignCopilot) {
+                createParams.assignees = ['copilot'];
+              }
+
+              const { data: created } = await github.rest.issues.create(createParams);
+              core.info(`Created issue #${created.number}: ${created.html_url}`);
+            }
+```
+
+> **Key changes from original:**
+> - `paths: ['planned/plan.md']` on the `pull_request` trigger — only runs when the plan file changed (loop prevention)
+> - `fetch-depth: 0` on checkout — needed to compare SHAs
+> - Job renamed `create-agent-issues` for clarity
+> - Simplified `if` — no more actor/branch exclusions
+> - File path changed from `planning.md` → `planned/plan.md`
+> - Issue bodies include full plan content via `$PLAN_CONTENT` env variable
 
 ---
 
-### 11. Definition of Done
+### 5. Validation / Testing
 
-- [ ] `uv sync` completes without errors on a clean Python 3.11+ environment.
-- [ ] `uv run uvicorn app.main:app --reload` starts without errors.
-- [ ] Navigating to `http://localhost:8000/` shows the login form.
-- [ ] Submitting `username` / `passcode` redirects to the success page.
-- [ ] Submitting any other credentials stays on the login page and shows an error.
-- [ ] All tests in `tests/test_auth.py` pass.
-- [ ] `POST /auth/login` is documented in `/docs` (Swagger UI).
+- [ ] **5.1** After applying the workflow changes, merge a PR that modifies `planned/plan.md` and verify:
+  - The "Create multiple issues" workflow run is **not skipped**.
+  - Three issues are created: "UI/UX changes", "Backend changes", "Testing changes".
+  - Each issue body contains the full content of `planned/plan.md`.
+  - Issues are labelled `copilot` and assigned to the Copilot agent.
+
+- [ ] **5.2** Merge a PR that does **not** modify `planned/plan.md` (e.g., a backend implementation PR) and verify:
+  - The workflow does **not** run (filtered by the `paths` trigger).
+
+- [ ] **5.3** Trigger the workflow manually via `workflow_dispatch` and verify:
+  - All three issues are created successfully.
+  - Issue bodies contain the current `planned/plan.md` content.
+
+- [ ] **5.4** Verify duplicate detection: if the three issues already exist in open state with the `copilot` label, re-running the workflow should log "skipping" for each and not create duplicate issues.
+
+---
+
+### 6. Definition of Done
+
+- [ ] Workflow `mainworkflow.yml` no longer has the `!startsWith(github.head_ref || '', 'copilot/')` exclusion.
+- [ ] Workflow file path for the plan document is `planned/plan.md` (not `planning.md`).
+- [ ] The `paths` trigger filter on the workflow prevents it from running on implementation-only PRs, eliminating infinite-loop risk.
+- [ ] All three issues (UI/UX, Backend, Testing) are created when a planning PR is merged.
+- [ ] Each issue body includes the full `planned/plan.md` content so agents have complete context.
+- [ ] No duplicate issues are created on re-runs.
