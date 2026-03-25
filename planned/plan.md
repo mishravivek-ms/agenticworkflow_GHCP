@@ -65,7 +65,7 @@ auth-app/
 - [ ] Define a hardcoded credentials store:
   ```python
   HARDCODED_USERNAME = "username"
-  HARDCODED_PASSCODE = "passcode"
+  HARDCODED_PASSWORD = "passcode"
   ```
 - [ ] Implement `validate_credentials(username: str, password: str) -> bool` function that returns `True` only when both values match the hardcoded store exactly (case-sensitive).
 - [ ] Ensure no credentials are ever logged or exposed in error messages.
